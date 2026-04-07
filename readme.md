@@ -15,6 +15,7 @@ Este projeto implementa um sistema de RAG (Retrieval-Augmented Generation) que p
 ⚙️ Tecnologias utilizadas
 🐍 Python
 🔗 LangChain
+💬 Ollama
+🤖 StreamLit
 🧠 Embeddings (Sentence Transformers)
 📊 FAISS (Vector Store)
-💬 Gemini API (Google AI)
