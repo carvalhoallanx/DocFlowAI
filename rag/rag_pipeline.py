@@ -1,8 +1,6 @@
 import os
 import warnings
 import requests
-from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
@@ -10,6 +8,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 warnings.filterwarnings("ignore")
 
 def load_db():
+    from langchain_community.vectorstores import FAISS
+    from langchain_huggingface import HuggingFaceEmbeddings
+
     embeddings = HuggingFaceEmbeddings(
         model_name="all-MiniLM-L6-v2",
         encode_kwargs={"batch_size": 64},

@@ -1,11 +1,16 @@
 import os
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
+import shutil
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
+BASE_DIR = Path(__file__).resolve().parents[1]
+VECTOR_STORE_DIR = str(BASE_DIR / "vector_store")
+DEFAULT_DOCS_DIR = str(BASE_DIR / "doc")
+
+
 def load_pdf(pdf):
+    from langchain_community.document_loaders import PyPDFLoader
+
     loader = PyPDFLoader(pdf)
     docs = list(loader.lazy_load())
     for doc in docs:
@@ -14,14 +19,18 @@ def load_pdf(pdf):
     return docs
 
 def add_documents_to_store(pdf_list):
+    from langchain_community.vectorstores import FAISS
+    from langchain_huggingface import HuggingFaceEmbeddings
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+
     embeddings = HuggingFaceEmbeddings(
         model_name="all-MiniLM-L6-v2",
     )
 
     # 🔁 Verifica se já existe banco
-    if os.path.exists("vector_store"):
+    if os.path.exists(VECTOR_STORE_DIR):
         db = FAISS.load_local(
-            "vector_store",
+            VECTOR_STORE_DIR,
             embeddings,
             allow_dangerous_deserialization=True
         )
@@ -60,6 +69,17 @@ def add_documents_to_store(pdf_list):
     else:
         db = FAISS.from_documents(split_docs, embeddings)
 
-    db.save_local("vector_store")
+    db.save_local(VECTOR_STORE_DIR)
 
     print("✅ Documentos adicionados ao banco!")
+
+
+def clear_store_and_docs(docs_dir=DEFAULT_DOCS_DIR, vector_store_dir=VECTOR_STORE_DIR):
+    if os.path.exists(vector_store_dir):
+        shutil.rmtree(vector_store_dir)
+
+    if docs_dir and os.path.exists(docs_dir):
+        for file_name in os.listdir(docs_dir):
+            file_path = os.path.join(docs_dir, file_name)
+            if os.path.isfile(file_path):
+                os.remove(file_path)

@@ -19,3 +19,17 @@ Este projeto implementa um sistema de RAG (Retrieval-Augmented Generation) que p
 🤖 StreamLit
 🧠 Embeddings (Sentence Transformers)
 📊 FAISS (Vector Store)
+🚀 FastAPI
+
+## API FastAPI
+
+Executar API:
+
+`uvicorn api.main:app --reload`
+
+Endpoints principais:
+
+- `GET /health`
+- `POST /documents/upload` (multipart/form-data com arquivos PDF)
+- `POST /materials/generate` (JSON com `request_text`, `output_type`, `k`)
+- `DELETE /database/clear?delete_docs=true`
