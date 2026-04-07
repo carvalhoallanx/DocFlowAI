@@ -1,10 +1,11 @@
 import streamlit as st
-from rag_pipeline import answer_question, load_db
+from rag_pipeline import generate_study_material, load_db
 from ingest import add_documents_to_store
 from pathlib import Path
 import os
+import shutil
 
-st.set_page_config(page_title="Chat com Documentos", layout="wide")
+st.set_page_config(page_title="ChatDOC", layout="wide")
 
 css = Path("styles.css").read_text(encoding="utf-8")
 st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
@@ -16,6 +17,20 @@ if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
 if "upload_done" not in st.session_state:
     st.session_state.upload_done = False
+if "clear_done" not in st.session_state:
+    st.session_state.clear_done = False
+
+
+def clear_store_and_docs():
+    if os.path.exists("vector_store"):
+        shutil.rmtree("vector_store")
+
+    docs_dir = "doc"
+    if os.path.exists(docs_dir):
+        for file_name in os.listdir(docs_dir):
+            file_path = os.path.join(docs_dir, file_name)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
 
 # 🎨 Sidebar
 with st.sidebar:
@@ -47,15 +62,36 @@ with st.sidebar:
     if st.session_state.upload_done:
         st.success("✅ PDFs adicionados!")
         st.session_state.upload_done = False
+    if st.session_state.clear_done:
+        st.success("🧹 Banco e documentos removidos com sucesso!")
+        st.session_state.clear_done = False
     st.markdown("---")
     st.markdown("### ⚙️ Configurações")
     k = st.slider("Quantidade de resultados (k)", 1, 10, 3)
+    output_type = st.selectbox(
+        "Tipo de material gerado",
+        options=[
+            "resposta",
+            "anotacoes",
+            "resumo",
+            "mapa_mental",
+            "cronograma",
+            "questionario",
+        ],
+        index=0,
+    )
     if st.button("🗑️ Limpar chat"):
         st.session_state.messages = []
         st.rerun()
+    if st.button("🧹 Limpar banco"):
+        clear_store_and_docs()
+        st.session_state.messages = []
+        st.session_state.uploader_key += 1
+        st.session_state.clear_done = True
+        st.rerun()
 
 # 🧾 Título
-st.title("🤖 Chat com seus documentos")
+st.title("🤖 ChatDOC")
 
 # 💬 Exibir histórico
 for message in st.session_state.messages:
@@ -83,7 +119,12 @@ if prompt := st.chat_input("Digite sua pergunta..."):
         with st.spinner("Pensando..."):
             try:
                 vector_store = load_db()
-                response, docs = answer_question(vector_store, prompt, k=k)
+                response, docs = generate_study_material(
+                    vector_store=vector_store,
+                    request_text=prompt,
+                    output_type=output_type,
+                    k=k
+                )
 
                 st.markdown(response)
 
