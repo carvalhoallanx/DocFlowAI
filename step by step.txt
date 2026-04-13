@@ -1,0 +1,16 @@
+in terminal - pip install requirements.txt or pip install 
+
+In powershell - irm https://ollama.com/install.ps1 | iex - install ollama
+
+in cmd - ollama pull nomic-embed-text  
+ollama pull qwen2.5-coder:7b
+
+run in terminal - 
+cd ChatDOC
+uvicorn api.main:app --reload
+or
+uvicorn api.main:app --reload
+
+streamlit run ChatDOC\app.py
+or 
+streamlit run app.py

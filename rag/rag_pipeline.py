@@ -1,31 +1,46 @@
 import os
 import warnings
 import requests
+import torch
+import ollama
+from pathlib import Path
+from rag.memory import ChatMemory, load_chat
+from rag.insights import load_insights
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 warnings.filterwarnings("ignore")
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+memory = ChatMemory(max_history=10)
+
+# Configuração do modelo Ollama - pode ser alterada via variável de ambiente
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+
 def load_db():
     from langchain_community.vectorstores import FAISS
-    from langchain_huggingface import HuggingFaceEmbeddings
+    from langchain_ollama import OllamaEmbeddings
 
-    embeddings = HuggingFaceEmbeddings(
-        model_name="all-MiniLM-L6-v2",
-        encode_kwargs={"batch_size": 64},
-    model_kwargs={'device': 'cpu'}
-    )
-    # Adicione o parâmetro abaixo para autorizar o carregamento do arquivo
-    return FAISS.load_local(
-        "vector_store", 
-        embeddings, 
-        allow_dangerous_deserialization=True
-    )
+    embeddings = OllamaEmbeddings(model="nomic-embed-text")
+    vector_store_path = Path(__file__).resolve().parents[1] / "vector_store"
+    
+    # Verificar se o diretório e arquivos existem
+    if not vector_store_path.exists():
+        raise FileNotFoundError(f"Banco de dados não encontrado em {vector_store_path}. Faça upload de um documento primeiro.")
+    
+    try:
+        return FAISS.load_local(
+            str(vector_store_path), 
+            embeddings, 
+            allow_dangerous_deserialization=True
+        )
+    except Exception as e:
+        raise RuntimeError(f"Erro ao carregar banco de dados FAISS: {e}")
 
 
 def _call_ollama(prompt):
-    model = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
+    model = os.getenv("OLLAMA_MODEL", "gemma3:4b")
     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 
     try:
@@ -108,3 +123,70 @@ def answer_question(vector_store, query, k=3):
         output_type="resposta",
         k=k
     )
+
+def generate_response(vector_store, question, k=3):
+    docs = vector_store.similarity_search(question, k=k)
+
+    context = "\n\n".join([d.page_content for d in docs])
+    insights = load_insights()
+    history = memory.get_context()
+
+    prompt = f"""
+    Você é um assistente inteligente.
+
+    HISTÓRICO:
+    {history}
+
+    INSIGHTS:
+    {insights}
+
+    CONTEXTO:
+    {context}
+
+    PERGUNTA:
+    {question}
+    """
+
+    stream = ollama.chat(
+        model="gemma3:4b",
+        messages=[{"role": "user", "content": prompt}],
+        stream=True
+    )
+
+    full_response = ""
+
+    for chunk in stream:
+        content = chunk["message"]["content"]
+        full_response += content
+        yield content, docs
+
+    memory.add("user", question)
+    memory.add("assistant", full_response)
+
+def ask_llm(question, db, chat_id):
+    history = load_chat(chat_id)
+
+    docs = db.similarity_search(question, k=4)
+
+    context = "\n\n".join([d.page_content for d in docs])
+
+    messages = history + [
+        {
+            "role": "user",
+            "content": f"""
+            Contexto:
+            {context}
+
+            Pergunta:
+            {question}
+            """
+        }
+    ]
+
+    response = ollama.chat(
+        model=OLLAMA_MODEL,
+        messages=messages,
+        stream=True
+    )
+
+    return response, docs
